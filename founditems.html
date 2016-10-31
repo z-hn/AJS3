@@ -1,0 +1,13 @@
+<div class="results">
+  <ul>
+    <li ng-repeat="item in list.items">
+      <strong>{{ item.name }}</strong>, {{ item.short_name }},<br>
+      <em>{{ item.description }}</em><br>
+      <button ng-click="list.onRemove({index: $index});">Don't want this one!</button>
+    </li>
+  </ul>
+</div>
+
+<div class="not-found">
+  <div class="error" ng-show="list.nothingFound()">Nothing found!</div>
+</div>

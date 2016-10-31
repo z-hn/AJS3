@@ -1,52 +1,109 @@
-(function ( ) {
-    "use strict";
-    var assignmentsApp = angular.module("assignmentsApp", []);
+(function(){
+  'use strict';
 
-    assignmentsApp
-      .controller("ToBuyController",  ToBuyController)
-      .controller("BoughtController", BoughtController)
-      .service("ShoppingListService", ShoppingListService);
+  angular.module('NarrowItDownApp', [])
+    .controller('NarrowItDownController', NarrowItDownController)
+    .service('MenuSearchService', MenuSearchService)
+    .directive('foundItems', FoundItemsDirective)
+    .constant('MenuListURL', 'https://davids-restaurant.herokuapp.com/menu_items.json')
+  ;
 
-    ToBuyController.$inject = ["ShoppingListService"];
-    BoughtController.$inject = ["ShoppingListService"];
+  NarrowItDownController.$inject = ['MenuSearchService'];
 
-    function ShoppingListService(){
-      var shoppingListService = this;
-      shoppingListService.itemsToBuy = [
-        {name: 'Cookies', quantity: 100},
-        {name: 'Chips', quantity: 30},
-        {name: 'Sugary Drinks', quantity: 5},
-        {name: 'Candy', quantity: 50},
-        {name: 'Tomatos', quantity: 5}
-      ];
+  function NarrowItDownController(MenuSearchService) {
+    var menu        = this;
 
-      shoppingListService.itemsBought = [];
+    menu.found      = [];
+    menu.fetched    = false;
+    menu.searchTerm = null;
 
-      this.getItemsToBuy = function(){
-        return shoppingListService.itemsToBuy;
+    menu.searchItems = function(){
+      var promise     = MenuSearchService.getMatchedMenuItems(menu.searchTerm);
+
+      promise.then(function (result) {
+        menu.found    = result.items;
+        menu.fetched  = true;
+      })
+      .catch(function (error) {
+        console.log(error.message);
+      });
+    };
+
+    menu.removeItem = function (itemIndex) {
+      menu.found.splice(itemIndex, 1);
+    };
+  }
+
+  MenuSearchService.$inject = ['$q', '$http', 'MenuListURL'];
+
+  function MenuSearchService($q, $http, MenuListURL) {
+    var service = this;
+
+    service.getMatchedMenuItems = function(searchTerm) {
+      var deferred = $q.defer();
+      var result   = {
+        items: [],
+        message: ''
       };
 
-      this.getItemsBought = function(){
-        return shoppingListService.itemsBought;
-      };
+      service.getMenuItems()
+      .then(function(response) {
+        if(response.data)
+        {
+          if(searchTerm && searchTerm.length) {
+            result.items = response.data.menu_items.filter(function(item) {
+              // return item.description.indexOf(searchTerm) !== -1;
+              // or
+              return item.description.search(searchTerm) !== -1;
+              // or
+              // return (new RegExp(searchTerm, 'i')).test(item.description);
+            });
+          }
 
-      shoppingListService.moveItemtoBoughtList = function ( itemIndex ){
-        shoppingListService.itemsBought.push(shoppingListService.itemsToBuy[itemIndex]);
-        shoppingListService.itemsToBuy = shoppingListService.itemsToBuy.slice(0,itemIndex).concat(shoppingListService.itemsToBuy.slice(itemIndex + 1));
-      }
+          deferred.resolve(result);
+        }
+        else
+        {
+          result.message = 'Response data does not exist';
+
+          deferred.reject(result);
+        }
+      })
+      .catch(function(error) {
+        result.message = '__o0o_(.)(.)_o0o__ Houston...we have a problem! Error: ' + error.status + ' ' + error.statusText;
+
+        deferred.reject(result);
+      });
+
+      return deferred.promise;
     }
 
-    function ToBuyController( ShoppingListService) {
-      var toBuyCtrl = this;
-      toBuyCtrl.getItemsToBuy = ShoppingListService.getItemsToBuy();
-      this.moveItemtoBoughtList = function( itemIndex ){
-        ShoppingListService.moveItemtoBoughtList( itemIndex );
-        toBuyCtrl.getItemsToBuy = ShoppingListService.getItemsToBuy();
-      };
-    }
+    service.getMenuItems = function() {
+      return $http.get(MenuListURL);
+    };
+  }
 
-    function BoughtController( ShoppingListService ){
-      this.getItemsBought = ShoppingListService.getItemsBought();
-    }
+  function FoundItemsDirective() {
+    var ddo = {
+      templateUrl: 'foundItems.html',
+      scope: {
+        items: '<',
+        fetched: '<',
+        onRemove: '&'
+      },
+      controller: FoundItemsDirectiveController,
+      controllerAs: 'list',
+      bindToController: true
+    };
 
+    return ddo;
+  }
+
+  function FoundItemsDirectiveController() {
+    var list = this;
+
+    list.nothingFound = function() {
+      return list.fetched && !list.items.length;
+    };
+  }
 })();
